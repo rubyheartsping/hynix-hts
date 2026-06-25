@@ -62,6 +62,10 @@ ASSETS: list[Asset] = [
     Asset("000660.KS", "SK Hynix", "stock"),
     Asset("MU", "Micron", "stock"),
     Asset("KRW=X", "USD/KRW", "fx"),
+    # 지수: 가격은 실시간 무료. 거래량은 yfinance가 None으로 줌(지수 거래량은
+    # KRX EOD/브로커 영역) → volume 컬럼 NULL로 적재됨.
+    Asset("^KS11", "KOSPI", "index"),
+    Asset("^KQ11", "KOSDAQ", "index"),
 ]
 
 
