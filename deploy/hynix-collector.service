@@ -2,6 +2,9 @@
 Description=Hynix HTS realtime quote collector
 After=network-online.target
 Wants=network-online.target
+# 크래시 폭주 방지: 60초 안에 5회 넘게 죽으면 멈춤 (StartLimit*은 [Unit] 섹션이어야 함)
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -12,9 +15,6 @@ WorkingDirectory=/home/opc/hynix-hts
 ExecStart=/home/opc/hynix-hts/.venv/bin/python /home/opc/hynix-hts/collector.py --interval 2 --db /home/opc/hynix-hts/data/ticks.db
 Restart=always
 RestartSec=5
-# 크래시 폭주 방지: 60초 안에 5회 넘게 죽으면 멈춤
-StartLimitIntervalSec=60
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

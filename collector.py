@@ -71,6 +71,7 @@ class Quote:
     name: str
     price: Optional[float]
     prev_close: Optional[float]
+    volume: Optional[float]   # 당일 누적 거래량(주식). 환율은 보통 None.
     currency: Optional[str]
     source: str
     ts_poll_utc: str     # 수집 시각 (ISO-8601, UTC)
@@ -100,15 +101,18 @@ def fetch_yfinance(asset: Asset, poll_utc: datetime) -> Quote:
         fi = yf.Ticker(asset.symbol).fast_info
         price = _safe_get(fi, "last_price", "lastPrice")
         prev = _safe_get(fi, "previous_close", "previousClose")
+        vol = _safe_get(fi, "last_volume", "lastVolume",
+                        "regular_market_volume", "regularMarketVolume")
         ccy = _safe_get(fi, "currency")
         if price is None:
-            return Quote(**base, price=None, prev_close=prev, currency=ccy,
+            return Quote(**base, price=None, prev_close=_as_float(prev),
+                         volume=_as_float(vol), currency=ccy,
                          ok=False, error="last_price 없음")
         return Quote(**base, price=float(price), prev_close=_as_float(prev),
-                     currency=ccy, ok=True)
+                     volume=_as_float(vol), currency=ccy, ok=True)
     except Exception as e:  # 한 종목 실패가 루프 죽이지 않게
-        return Quote(**base, price=None, prev_close=None, currency=None,
-                     ok=False, error=f"{type(e).__name__}: {e}")
+        return Quote(**base, price=None, prev_close=None, volume=None,
+                     currency=None, ok=False, error=f"{type(e).__name__}: {e}")
 
 
 def _safe_get(fast_info, *keys):
@@ -143,6 +147,7 @@ CREATE TABLE IF NOT EXISTS ticks (
     price       REAL,
     prev_close  REAL,
     change_pct  REAL,
+    volume      REAL,
     currency    TEXT,
     source      TEXT    NOT NULL,
     ok          INTEGER NOT NULL,
@@ -156,16 +161,24 @@ class Store:
     def __init__(self, path: str):
         self.conn = sqlite3.connect(path)
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        """기존(volume 없는) DB도 깨지지 않게 컬럼을 사후 추가한다."""
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(ticks)")}
+        if "volume" not in cols:
+            self.conn.execute("ALTER TABLE ticks ADD COLUMN volume REAL")
+            log.info("기존 DB 마이그레이션: ticks.volume 컬럼 추가")
 
     def insert(self, q: Quote) -> None:
         self.conn.execute(
             """INSERT INTO ticks
                (ts_poll_utc, ts_poll_kst, symbol, name, price, prev_close,
-                change_pct, currency, source, ok, error)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                change_pct, volume, currency, source, ok, error)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
             (q.ts_poll_utc, q.ts_poll_kst, q.symbol, q.name, q.price,
-             q.prev_close, q.change_pct, q.currency, q.source,
+             q.prev_close, q.change_pct, q.volume, q.currency, q.source,
              int(q.ok), q.error),
         )
 
@@ -209,7 +222,8 @@ def run(interval: float, duration: Optional[float], db_path: str) -> None:
             store.insert(q)
             if q.ok:
                 chg = f"{q.change_pct:+.2f}%" if q.change_pct is not None else "  -  "
-                line.append(f"{q.name}={q.price:,.2f}({chg})")
+                vol = f" vol={q.volume:,.0f}" if q.volume is not None else ""
+                line.append(f"{q.name}={q.price:,.2f}({chg}){vol}")
             else:
                 line.append(f"{q.name}=ERR")
         store.commit()
