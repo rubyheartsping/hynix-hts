@@ -1,0 +1,26 @@
+# 데이터 (계속 커짐, 절대 커밋 금지)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+
+# 가상환경
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# 비밀값 (브로커 API 키 등 차후)
+.env
+*.key
+secrets/
+
+# Claude Code 로컬 설정
+.claude/
+
+# OS/에디터
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

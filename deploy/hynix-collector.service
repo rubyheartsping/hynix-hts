@@ -1,0 +1,20 @@
+[Unit]
+Description=Hynix HTS realtime quote collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# OCI Oracle Linux 기본 유저는 opc, Ubuntu 이미지는 ubuntu. 환경에 맞게 수정.
+User=opc
+WorkingDirectory=/home/opc/hynix-hts
+# venv 의 python 절대경로. interval/db 경로는 필요시 수정.
+ExecStart=/home/opc/hynix-hts/.venv/bin/python /home/opc/hynix-hts/collector.py --interval 2 --db /home/opc/hynix-hts/data/ticks.db
+Restart=always
+RestartSec=5
+# 크래시 폭주 방지: 60초 안에 5회 넘게 죽으면 멈춤
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
